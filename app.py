@@ -10,6 +10,14 @@ HINT_MESSAGES = {
     "Too Low": "📈 Go HIGHER!",
 }
 
+# Challenge 4: Enhanced UI — icons shown next to each past guess in the history list.
+HISTORY_ICONS = {
+    "Win": "✅",
+    "Too High": "⬆️",
+    "Too Low": "⬇️",
+    "Invalid": "⚠️",
+}
+
 st.set_page_config(page_title="Glitchy Guesser", page_icon="🎮")
 
 st.title("🎮 Game Glitch Investigator")
@@ -53,10 +61,17 @@ if "history" not in st.session_state:
 
 st.subheader("Make a guess")
 
-st.info(
-    f"Guess a number between 1 and 100. "
-    f"Attempts left: {attempt_limit - st.session_state.attempts}"
-)
+attempts_left = max(attempt_limit - st.session_state.attempts, 0)
+
+# Challenge 4: Enhanced UI — at-a-glance metrics and a progress bar instead of plain text.
+metric_col1, metric_col2, metric_col3 = st.columns(3)
+metric_col1.metric("Score", st.session_state.score)
+metric_col2.metric("Attempts Left", attempts_left)
+metric_col3.metric("Difficulty", difficulty)
+
+st.progress(min(st.session_state.attempts / attempt_limit, 1.0))
+
+st.info(f"Guess a number between {low} and {high}.")
 
 with st.expander("Developer Debug Info"):
     st.write("Attempts:", st.session_state.attempts)
@@ -71,6 +86,13 @@ with st.form(key="guess_form", clear_on_submit=False):
     submit = st.form_submit_button("Submit Guess 🚀")
 
 new_game = st.button("New Game 🔁")
+
+# Challenge 4: Enhanced UI — icon-coded history instead of a raw debug list.
+if st.session_state.history:
+    st.subheader("Guess History")
+    for entry in reversed(st.session_state.history):
+        icon = HISTORY_ICONS.get(entry["outcome"], "❓")
+        st.write(f"{icon} Guess: {entry['guess']} — {entry['outcome']}")
 
 if new_game:
     st.session_state.attempts = 0
@@ -101,12 +123,11 @@ if submit:
     ok, guess_int, err = parse_guess(raw_guess)
 
     if not ok:
-        st.session_state.history.append(raw_guess)
+        st.session_state.history.append({"guess": raw_guess, "outcome": "Invalid"})
         st.error(err)
     else:
-        st.session_state.history.append(guess_int)
-
         outcome = check_guess(guess_int, st.session_state.secret)
+        st.session_state.history.append({"guess": guess_int, "outcome": outcome})
 
         if show_hint:
             st.warning(HINT_MESSAGES[outcome])

@@ -1,4 +1,4 @@
-from logic_utils import check_guess, update_score
+from logic_utils import check_guess, parse_guess, update_score
 
 def test_winning_guess():
     # If the secret is 50 and guess is 50, it should be a win
@@ -26,3 +26,52 @@ def test_too_high_always_deducts_even_on_even_attempt():
     # instead of -5 when attempt_number was even.
     result = update_score(current_score=0, outcome="Too High", attempt_number=2)
     assert result == -5
+
+# --- Challenge 1: Advanced Edge-Case Testing ---
+
+def test_parse_guess_none_returns_error():
+    ok, value, err = parse_guess(None)
+    assert ok is False
+    assert value is None
+    assert err == "Enter a guess."
+
+def test_parse_guess_empty_string_returns_error():
+    ok, value, err = parse_guess("")
+    assert ok is False
+    assert err == "Enter a guess."
+
+def test_parse_guess_whitespace_is_not_a_number():
+    ok, value, err = parse_guess("   ")
+    assert ok is False
+    assert err == "That is not a number."
+
+def test_parse_guess_non_numeric_string_returns_error():
+    ok, value, err = parse_guess("banana")
+    assert ok is False
+    assert err == "That is not a number."
+
+def test_parse_guess_decimal_string_truncates_to_int():
+    ok, value, err = parse_guess("12.7")
+    assert ok is True
+    assert value == 12
+    assert err is None
+
+def test_parse_guess_negative_number_is_accepted():
+    ok, value, err = parse_guess("-15")
+    assert ok is True
+    assert value == -15
+
+def test_check_guess_handles_negative_numbers():
+    assert check_guess(-10, -5) == "Too Low"
+    assert check_guess(-3, -5) == "Too High"
+    assert check_guess(-5, -5) == "Win"
+
+def test_update_score_win_floor_clamps_at_10():
+    # Late-game win (attempt 15) should clamp to the 10-point floor,
+    # not go negative.
+    result = update_score(current_score=0, outcome="Win", attempt_number=15)
+    assert result == 10
+
+def test_update_score_unknown_outcome_leaves_score_unchanged():
+    result = update_score(current_score=42, outcome="Unknown", attempt_number=1)
+    assert result == 42

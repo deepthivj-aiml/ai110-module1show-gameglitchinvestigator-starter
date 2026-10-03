@@ -56,16 +56,22 @@ award.
 **Suggestion I changed:** when I reported that the guess box went empty and
 asked for input a second time after editing a guess, Copilot's first fix was
 to keep the `text_input` key stable and clear it through a `handle_submit()`
-function passed as the button's `on_click` callback. That looked reasonable
-in the code, but when I tested it in the running app I still had to click
-"Submit Guess" twice before it registered — the callback could fire before
-the text box's latest edit was committed to `session_state`, so it sometimes
-read a stale value. I rejected that version and had it replace the manual
+function passed as the button's `on_click` callback. That wasn't a "wrong"
+idea on its face — `on_click` callbacks are a real, documented Streamlit
+pattern for this exact problem — but when I actually tested it in the running
+app I still had to click "Submit Guess" twice before it registered: the
+callback could fire before the text box's latest edit was committed to
+`session_state`, so it sometimes read a stale value. I didn't just accept
+that it "should" work because the code looked reasonable; I rejected that
+version once I saw it fail in practice, and had it replace the manual
 callback with `st.form(clear_on_submit=...)`, which batches the text input
 and the submit button together so the value is only read once, atomically,
 when the form is submitted. I verified the fix by running the Streamlit app
 again and submitting several guesses in a row without the double-click or
-empty-box behavior returning.
+empty-box behavior returning. That back-and-forth is the clearest example from
+this project of me staying in the loop instead of trusting a plausible-looking
+diff: the first version compiled fine and read fine, and the only way I caught
+the problem was by clicking through the actual app myself.
 
 ---
 
