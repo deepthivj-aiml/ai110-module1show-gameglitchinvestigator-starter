@@ -1,13 +1,26 @@
 import random
 import streamlit as st
 
-from logic_utils import check_guess, get_range_for_difficulty, parse_guess, update_score
+from logic_utils import (
+    check_guess,
+    get_proximity_label,
+    get_range_for_difficulty,
+    parse_guess,
+    update_score,
+)
 
 # FIX: moved hint text out of logic_utils so check_guess can return a plain outcome (agent mode)
 HINT_MESSAGES = {
     "Win": "🎉 Correct!",
     "Too High": "📉 Go LOWER!",
     "Too Low": "📈 Go HIGHER!",
+}
+
+# Challenge 4: Enhanced UI — color-coded hint text (Streamlit markdown color syntax).
+HINT_COLORS = {
+    "Win": "green",
+    "Too High": "orange",
+    "Too Low": "blue",
 }
 
 # Challenge 4: Enhanced UI — icons shown next to each past guess in the history list.
@@ -80,19 +93,47 @@ with st.expander("Developer Debug Info"):
     st.write("History:", st.session_state.history)
 
 with st.form(key="guess_form", clear_on_submit=False):
-    # FIX: st.form batches the guess with submit, avoiding the click-race from on_click callbacks (Copilot agent mode)
+    # FIX: st.form avoids the on_click callback's click-race (agent mode)
     raw_guess = st.text_input("Enter your guess:")
     show_hint = st.checkbox("Show hint", value=True)
     submit = st.form_submit_button("Submit Guess 🚀")
 
 new_game = st.button("New Game 🔁")
 
-# Challenge 4: Enhanced UI — icon-coded history instead of a raw debug list.
+# Challenge 4: Enhanced UI — structured session summary table instead of a raw list.
 if st.session_state.history:
-    st.subheader("Guess History")
-    for entry in reversed(st.session_state.history):
+    st.subheader("📋 Session Summary")
+    summary_rows = []
+    for i, entry in enumerate(st.session_state.history, start=1):
         icon = HISTORY_ICONS.get(entry["outcome"], "❓")
-        st.write(f"{icon} Guess: {entry['guess']} — {entry['outcome']}")
+        summary_rows.append(
+            {
+                "Attempt": i,
+                "Guess": entry["guess"],
+                "Outcome": f"{icon} {entry['outcome']}",
+                "Proximity": entry.get("proximity", "—"),
+                "Score": entry.get("score_after", "—"),
+            }
+        )
+    st.table(summary_rows)
+
+# Challenge 4: Enhanced UI — sidebar visualization of guess closeness to the secret.
+st.sidebar.divider()
+st.sidebar.header("📊 Guess History")
+range_size = max(high - low, 1)
+valid_guesses = [
+    entry for entry in st.session_state.history if entry["outcome"] != "Invalid"
+]
+if valid_guesses:
+    for entry in reversed(valid_guesses):
+        distance = abs(entry["guess"] - st.session_state.secret)
+        closeness = max(0.0, 1 - (distance / range_size))
+        icon = HISTORY_ICONS.get(entry["outcome"], "❓")
+        proximity = entry.get("proximity", "")
+        st.sidebar.caption(f"{icon} Guess {entry['guess']} — {proximity}")
+        st.sidebar.progress(closeness)
+else:
+    st.sidebar.caption("No guesses yet.")
 
 if new_game:
     st.session_state.attempts = 0
@@ -104,7 +145,7 @@ if new_game:
     st.rerun()
 
 if st.session_state.status != "playing":
-    # FIX: reveal the secret on the persistent game-over screen, not just the one-time message (Copilot agent mode)
+    # FIX: reveal the secret on the game-over screen, not just the one-time message (agent mode)
     if st.session_state.status == "won":
         st.success(
             f"You already won. The secret was {st.session_state.secret}. "
@@ -123,20 +164,35 @@ if submit:
     ok, guess_int, err = parse_guess(raw_guess)
 
     if not ok:
-        st.session_state.history.append({"guess": raw_guess, "outcome": "Invalid"})
+        st.session_state.history.append(
+            {
+                "guess": raw_guess,
+                "outcome": "Invalid",
+                "proximity": "—",
+                "score_after": st.session_state.score,
+            }
+        )
         st.error(err)
     else:
+        assert guess_int is not None  # ok is True here, so parse_guess returned an int
         outcome = check_guess(guess_int, st.session_state.secret)
-        st.session_state.history.append({"guess": guess_int, "outcome": outcome})
+        proximity = get_proximity_label(guess_int, st.session_state.secret, low, high)
+        st.session_state.history.append(
+            {"guess": guess_int, "outcome": outcome, "proximity": proximity}
+        )
 
         if show_hint:
-            st.warning(HINT_MESSAGES[outcome])
+            # Challenge 4: Enhanced UI — color-coded hint plus a Hot/Cold proximity emoji.
+            color = HINT_COLORS.get(outcome, "gray")
+            st.markdown(f":{color}[**{HINT_MESSAGES[outcome]}**]")
+            st.caption(f"Proximity: {proximity}")
 
         st.session_state.score = update_score(
             current_score=st.session_state.score,
             outcome=outcome,
             attempt_number=st.session_state.attempts,
         )
+        st.session_state.history[-1]["score_after"] = st.session_state.score
 
         if outcome == "Win":
             st.balloons()
